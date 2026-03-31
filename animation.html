@@ -15,8 +15,7 @@
      </style> 
  </head> 
  <body> 
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script> 
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script> 
+     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script> 
      <script> 
          // 初始化场景、相机、渲染器 
          const scene = new THREE.Scene(); 
@@ -25,8 +24,7 @@
          renderer.setSize(window.innerWidth, window.innerHeight); 
          document.body.appendChild(renderer.domElement); 
  
-         // 轨道控制器，用于交互 
-         const controls = new THREE.OrbitControls(camera, renderer.domElement); 
+         // 相机位置 
          camera.position.z = 5; 
  
          // 生成爱心形状的粒子 
@@ -35,7 +33,7 @@
          const posArray = new Float32Array(particlesCount * 3); 
  
          // 爱心数学公式：(x² + y² + z² - 1)³ - x²z³ - y²z³ = 0 
-         for (let i = 0; i < particlesCount * 3; i++) { 
+         for (let i = 0; i < particlesCount; i++) { 
              let theta = Math.random() * Math.PI; 
              let phi = Math.random() * Math.PI * 2; 
              let r = Math.cbrt(Math.random()); // 基于爱心公式的半径计算 
