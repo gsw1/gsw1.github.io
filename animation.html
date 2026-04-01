@@ -197,7 +197,7 @@ function animate(){
   material.uniforms.uTime.value+=0.02;
 
   if(state==="gather"){
-    progress+=0.01;
+    progress+=0.03;
     const t = targets[targetIndex%targets.length];
     for(let i=0;i<particleCount;i++){
       const pt=t[i%t.length];
@@ -215,7 +215,7 @@ function animate(){
     particles.scale.set(s,s,s);
   }
   else if(state==="explode"){
-    progress+=0.02;
+    progress+=0.05;
     for(let i=0;i<particleCount;i++){
       arr[i*3]+=(Math.random()-0.5)*4;
       arr[i*3+1]+=(Math.random()-0.5)*4;
