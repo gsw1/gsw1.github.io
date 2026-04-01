@@ -1,411 +1,237 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D爱心粒子效果</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            overflow: hidden;
-            background: #000;
-        }
-        canvas {
-            display: block;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>循环粒子动画手机版</title>
+<style>
+body{margin:0;background:#000;overflow:hidden;}
+canvas{display:block;}
+.back-btn{position:fixed;top:15px;left:15px;z-index:100;padding:8px 16px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;text-decoration:none;font-size:14px;backdrop-filter:blur(5px);transition:all 0.3s;}
+.back-btn:hover{background:rgba(255,255,255,0.3);transform:scale(1.05);}
+</style>
 </head>
 <body>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+<a href="index.html" class="back-btn">← 返回</a>
 
-        // 场景设置
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x000000);
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 
-        // 相机设置
-        const camera = new THREE.PerspectiveCamera(
-            60,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
-        camera.position.set(0, 0, 35);
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // 渲染器设置
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+// ===== Scene & Camera =====
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+camera.position.z = 60;
 
-        // 控制器
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
 
-        // 创建圆形纹理
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-        gradient.addColorStop(0, 'rgba(255,255,255,1)');
-        gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
-        gradient.addColorStop(0.7, 'rgba(255,255,255,0.3)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 64, 64);
-        const particleTexture = new THREE.CanvasTexture(canvas);
+// ===== Composer + Bloom =====
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.5, 0.4, 0.85));
 
-        // 粉色颜色数组 - 所有粒子都是粉色
-        const pinkColors = [
-            { r: 1.0, g: 0.1, b: 0.5 },   // 深粉
-            { r: 1.0, g: 0.2, b: 0.6 },   // 中深粉
-            { r: 1.0, g: 0.3, b: 0.7 },   // 中粉
-            { r: 1.0, g: 0.4, b: 0.8 },   // 亮粉
-            { r: 1.0, g: 0.5, b: 0.85 },  // 浅粉
-            { r: 1.0, g: 0.6, b: 0.9 }    // 淡粉
-        ];
+// ===== Particle Setup =====
+const particleCount = 15000; // 手机优化点数少一些
+const positions = new Float32Array(particleCount*3);
+const offsets = new Float32Array(particleCount);
 
-        function getRandomPinkColor() {
-            const color = pinkColors[Math.floor(Math.random() * pinkColors.length)];
-            return { r: color.r, g: color.g, b: color.b };
-        }
+// 初始散开
+for(let i=0;i<particleCount;i++){
+  const r = 50 + Math.random()*20;
+  const angle = Math.random()*Math.PI*2;
+  positions[i*3] = Math.cos(angle)*r;
+  positions[i*3+1] = (Math.random()-0.5)*60;
+  positions[i*3+2] = Math.sin(angle)*r;
+  offsets[i] = Math.random()*100;
+}
 
-        // 判断点是否在爱心内部（实心爱心）
-        function isInsideHeart(x, y) {
-            // 爱心方程: (x^2 + y^2 - 1)^3 - x^2 * y^3 <= 0
-            const xx = x * 0.15;
-            const yy = y * 0.15;
-            const a = xx * xx + yy * yy - 1;
-            return a * a * a - xx * xx * yy * yy * yy <= 0;
-        }
+// ===== Heart Points =====
+function heart(x,y){const a=x*x+y*y-1; return a*a*a-x*x*y*y*y<=0;}
+function createHeartPoints(){
+  const pts = [];
+  for(let t=0;t<Math.PI*2;t+=0.01){
+    const x = 16*Math.pow(Math.sin(t),3);
+    const y = 13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
+    pts.push(new THREE.Vector3(x*0.6,y*0.6,0));
+  }
+  for(let x=-1.5;x<=1.5;x+=0.06){
+    for(let y=-1.5;y<=1.5;y+=0.06){
+      if(heart(x,y)) pts.push(new THREE.Vector3(x*12,y*12,(Math.random()-0.5)*2));
+    }
+  }
+  return pts;
+}
 
-        // 生成实心爱心内部的目标位置
-        function getSolidHeartTarget(scale = 1) {
-            let x, y, z;
-            let attempts = 0;
-            do {
-                // 在爱心边界框内随机生成
-                x = (Math.random() * 32 - 16) * scale;
-                y = (Math.random() * 26 - 13) * scale;
-                z = (Math.random() * 6 - 3) * scale;
-                attempts++;
-            } while (!isInsideHeart(x, y) && attempts < 100);
-            
-            return {
-                x: x * 0.12,
-                y: y * 0.12,
-                z: z * 0.12
-            };
-        }
+// ===== Text Points (竖屏优化) =====
+function createTextPoints(text){
+  const isPortrait = window.innerWidth < window.innerHeight;
+  const canvas = document.createElement('canvas');
+  
+  // 竖屏：使用更窄的宽度和更大的高度，文字纵向排列
+  if (isPortrait) {
+    canvas.width = 400;
+    canvas.height = 600;
+  } else {
+    canvas.width = 800;
+    canvas.height = 300;
+  }
+  
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#fff";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  
+  // 竖屏时文字纵向排列，横屏时横向排列
+  if (isPortrait && text.length > 1) {
+    // 竖屏：每个字占一行，从上到下排列
+    const fontSize = 100;
+    ctx.font = `bold ${fontSize}px PingFang SC, Microsoft YaHei`;
+    const lineHeight = 140;
+    const startY = canvas.height/2 - (text.length-1)*lineHeight/2;
+    for (let i = 0; i < text.length; i++) {
+      ctx.fillText(text[i], canvas.width/2, startY + i*lineHeight);
+    }
+  } else {
+    // 横屏：横向排列
+    const fontSize = isPortrait ? 80 : 100;
+    ctx.font = `bold ${fontSize}px PingFang SC, Microsoft YaHei`;
+    ctx.fillText(text, canvas.width/2, canvas.height/2);
+  }
+  
+  const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const pts = [];
+  const step = 2;
+  const scale = isPortrait ? 0.08 : 0.12; // 竖屏缩放比例更小
+  
+  for(let y=0; y<canvas.height; y+=step){
+    for(let x=0; x<canvas.width; x+=step){
+      if(img.data[(y*canvas.width+x)*4]>200){
+        pts.push(new THREE.Vector3(
+          (x-canvas.width/2)*scale,
+          (canvas.height/2-y)*scale,
+          (Math.random()-0.5)*2
+        ));
+      }
+    }
+  }
+  return pts;
+}
 
-        // 爱心粒子系统 - 粒子从外部飞向爱心内部
-        const heartParticleCount = 8000;
-        const heartGeometry = new THREE.BufferGeometry();
-        const heartPositions = new Float32Array(heartParticleCount * 3);
-        const heartTargets = new Float32Array(heartParticleCount * 3);
-        const heartColors = new Float32Array(heartParticleCount * 3);
-        const heartPhases = new Float32Array(heartParticleCount);
-        const heartSpeeds = new Float32Array(heartParticleCount);
+// ===== Targets =====
+const targets = [
+  createHeartPoints(),
+  createTextPoints("颜颜"),
+  createTextPoints("我爱你")
+];
+let targetIndex = 0;
 
-        // 初始化粒子
-        for (let i = 0; i < heartParticleCount; i++) {
-            const idx = i * 3;
-            
-            // 目标位置（实心爱心内部）
-            const target = getSolidHeartTarget(0.9 + Math.random() * 0.2);
-            
-            heartTargets[idx] = target.x;
-            heartTargets[idx + 1] = target.y;
-            heartTargets[idx + 2] = target.z;
-            
-            // 起始位置（爱心外部随机位置）
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 25 + Math.random() * 15;
-            const height = (Math.random() - 0.5) * 40;
-            
-            heartPositions[idx] = Math.cos(angle) * radius;
-            heartPositions[idx + 1] = height;
-            heartPositions[idx + 2] = Math.sin(angle) * radius;
-            
-            // 动画参数
-            heartPhases[i] = Math.random() * Math.PI * 2;
-            heartSpeeds[i] = 0.008 + Math.random() * 0.015;
-            
-            // 粉色
-            const color = getRandomPinkColor();
-            heartColors[idx] = color.r;
-            heartColors[idx + 1] = color.g;
-            heartColors[idx + 2] = color.b;
-        }
+// ===== Geometry & Shader =====
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+geo.setAttribute('aOffset', new THREE.BufferAttribute(offsets,1));
 
-        heartGeometry.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
-        heartGeometry.setAttribute('color', new THREE.BufferAttribute(heartColors, 3));
+const material = new THREE.ShaderMaterial({
+  transparent:true,
+  blending:THREE.AdditiveBlending,
+  depthWrite:false,
+  uniforms:{ uTime:{value:0} },
+  vertexShader:`
+    attribute float aOffset;
+    uniform float uTime;
+    void main(){
+      vec3 p=position;
+      float t = uTime*0.5+aOffset;
+      p.x += sin(t)*0.2;
+      p.y += cos(t*1.2)*0.2;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
+      gl_PointSize = 2.0;
+    }
+  `,
+  fragmentShader:`
+    void main(){
+      float d = length(gl_PointCoord-vec2(0.5));
+      float alpha = smoothstep(0.5,0.0,d);
+      gl_FragColor=vec4(1.0,0.3,0.6,alpha);
+    }
+  `
+});
+const particles = new THREE.Points(geo, material);
+scene.add(particles);
 
-        const heartMaterial = new THREE.PointsMaterial({
-            size: 0.35,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            transparent: true,
-            opacity: 0.85,
-            map: particleTexture
-        });
+// ===== State Machine =====
+let state="gather"; 
+let progress=0;
 
-        const heartParticles = new THREE.Points(heartGeometry, heartMaterial);
-        scene.add(heartParticles);
+// ===== Click Handler =====
+window.onclick = ()=>{
+  if(state==="heart" || state==="text") state="explode";
+};
 
-        // 飘落粒子系统 - 从爱心底部飘落
-        const fallingParticleCount = 2000;
-        const fallingGeometry = new THREE.BufferGeometry();
-        const fallingPositions = new Float32Array(fallingParticleCount * 3);
-        const fallingVelocities = new Float32Array(fallingParticleCount * 3);
-        const fallingColors = new Float32Array(fallingParticleCount * 3);
+// ===== Animate =====
+function animate(){
+  requestAnimationFrame(animate);
+  const arr=geo.attributes.position.array;
+  material.uniforms.uTime.value+=0.02;
 
-        for (let i = 0; i < fallingParticleCount; i++) {
-            const idx = i * 3;
-            
-            // 从爱心底部边缘开始
-            const target = getSolidHeartTarget(0.8 + Math.random() * 0.3);
-            
-            fallingPositions[idx] = target.x + (Math.random() - 0.5) * 0.5;
-            fallingPositions[idx + 1] = target.y + (Math.random() - 0.5) * 0.5;
-            fallingPositions[idx + 2] = target.z + (Math.random() - 0.5) * 0.5;
-            
-            fallingVelocities[idx] = (Math.random() - 0.5) * 0.015;
-            fallingVelocities[idx + 1] = -Math.random() * 0.06 - 0.02;
-            fallingVelocities[idx + 2] = (Math.random() - 0.5) * 0.015;
-            
-            const color = getRandomPinkColor();
-            fallingColors[idx] = color.r;
-            fallingColors[idx + 1] = color.g;
-            fallingColors[idx + 2] = color.b;
-        }
+  if(state==="gather"){
+    progress+=0.01;
+    const t = targets[targetIndex%targets.length];
+    for(let i=0;i<particleCount;i++){
+      const pt=t[i%t.length];
+      arr[i*3] += (pt.x - arr[i*3])*0.04;
+      arr[i*3+1] += (pt.y - arr[i*3+1])*0.04;
+      arr[i*3+2] += (pt.z - arr[i*3+2])*0.04;
+    }
+    if(progress>1){ 
+      state = targetIndex===0 ? "heart" : "text"; 
+      progress=0; 
+    }
+  }
+  else if(state==="heart" || state==="text"){
+    const s = 1 + Math.sin(Date.now()*0.002)*0.03;
+    particles.scale.set(s,s,s);
+  }
+  else if(state==="explode"){
+    progress+=0.02;
+    for(let i=0;i<particleCount;i++){
+      arr[i*3]+=(Math.random()-0.5)*4;
+      arr[i*3+1]+=(Math.random()-0.5)*4;
+      arr[i*3+2]+=(Math.random()-0.5)*4;
+    }
+    if(progress>1){
+      targetIndex=(targetIndex+1)%targets.length;
+      state="gather";
+      progress=0;
+    }
+  }
 
-        fallingGeometry.setAttribute('position', new THREE.BufferAttribute(fallingPositions, 3));
-        fallingGeometry.setAttribute('color', new THREE.BufferAttribute(fallingColors, 3));
+  geo.attributes.position.needsUpdate=true;
+  composer.render();
+}
+animate();
 
-        const fallingMaterial = new THREE.PointsMaterial({
-            size: 0.22,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            transparent: true,
-            opacity: 0.75,
-            map: particleTexture
-        });
-
-        const fallingParticles = new THREE.Points(fallingGeometry, fallingMaterial);
-        scene.add(fallingParticles);
-
-        // 地面"颜颜"文字 - 使用粒子组成
-        const textParticleCount = 4000;
-        const textGeometry = new THREE.BufferGeometry();
-        const textPositions = new Float32Array(textParticleCount * 3);
-        const textTargetPositions = new Float32Array(textParticleCount * 3);
-        const textColors = new Float32Array(textParticleCount * 3);
-        const textProgress = new Float32Array(textParticleCount);
-
-        // 改进的"颜"字点阵 - 更清晰的形状
-        const yanPattern = [
-            "  111  ",
-            " 1   1 ",
-            "1111111",
-            "  1 1  ",
-            " 11111 ",
-            "1  1  1",
-            "1  1  1"
-        ];
-
-        function createYanText(startX, startZ, particleArray, targetArray, colorArray, startIndex) {
-            const scale = 0.4;
-            let count = 0;
-            
-            for (let row = 0; row < yanPattern.length; row++) {
-                for (let col = 0; col < yanPattern[row].length; col++) {
-                    if (yanPattern[row][col] === '1') {
-                        for (let p = 0; p < 5; p++) { // 每个点多个粒子
-                            const idx = (startIndex + count) * 3;
-                            if (startIndex + count >= textParticleCount / 2) break;
-                            
-                            // 目标位置（文字形状）
-                            targetArray[idx] = startX + (col - 3) * scale + (Math.random() - 0.5) * 0.12;
-                            targetArray[idx + 1] = -9 + (yanPattern.length - row) * scale + (Math.random() - 0.5) * 0.12;
-                            targetArray[idx + 2] = startZ + (Math.random() - 0.5) * 0.25;
-                            
-                            // 起始位置（从上方飘落）
-                            particleArray[idx] = targetArray[idx] + (Math.random() - 0.5) * 8;
-                            particleArray[idx + 1] = 8 + Math.random() * 15;
-                            particleArray[idx + 2] = targetArray[idx + 2] + (Math.random() - 0.5) * 8;
-                            
-                            const color = getRandomPinkColor();
-                            colorArray[idx] = color.r;
-                            colorArray[idx + 1] = color.g;
-                            colorArray[idx + 2] = color.b;
-                            
-                            count++;
-                        }
-                    }
-                }
-            }
-            return count;
-        }
-
-        // 生成两个"颜"字
-        let particleIndex = 0;
-        particleIndex += createYanText(-4.5, 0, textPositions, textTargetPositions, textColors, particleIndex);
-        particleIndex += createYanText(4.5, 0, textPositions, textTargetPositions, textColors, particleIndex);
-
-        // 初始化进度
-        for (let i = 0; i < textParticleCount; i++) {
-            textProgress[i] = Math.random() * 0.3;
-        }
-
-        textGeometry.setAttribute('position', new THREE.BufferAttribute(textPositions, 3));
-        textGeometry.setAttribute('color', new THREE.BufferAttribute(textColors, 3));
-
-        const textMaterial = new THREE.PointsMaterial({
-            size: 0.28,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            transparent: true,
-            opacity: 0.85,
-            map: particleTexture
-        });
-
-        const textParticles = new THREE.Points(textGeometry, textMaterial);
-        scene.add(textParticles);
-
-        // 动画循环
-        const clock = new THREE.Clock();
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const time = clock.getElapsedTime();
-
-            // 更新爱心粒子 - 从外部飞向目标（实心爱心内部）
-            const heartPosAttr = heartGeometry.attributes.position;
-            const heartPosArray = heartPosAttr.array;
-
-            for (let i = 0; i < heartParticleCount; i++) {
-                const idx = i * 3;
-                const phase = heartPhases[i];
-                const speed = heartSpeeds[i];
-
-                // 向目标位置移动
-                const dx = heartTargets[idx] - heartPosArray[idx];
-                const dy = heartTargets[idx + 1] - heartPosArray[idx + 1];
-                const dz = heartTargets[idx + 2] - heartPosArray[idx + 2];
-
-                // 添加波动效果（风吹动）
-                const waveX = Math.sin(time * 1.5 + phase) * 0.015;
-                const waveY = Math.cos(time * 1.2 + phase) * 0.015;
-                const waveZ = Math.sin(time * 1.8 + phase * 0.5) * 0.015;
-
-                heartPosArray[idx] += dx * speed + waveX;
-                heartPosArray[idx + 1] += dy * speed + waveY;
-                heartPosArray[idx + 2] += dz * speed + waveZ;
-
-                // 如果接近目标，添加微小扰动
-                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist < 0.3) {
-                    heartPosArray[idx] += (Math.random() - 0.5) * 0.008;
-                    heartPosArray[idx + 1] += (Math.random() - 0.5) * 0.008;
-                    heartPosArray[idx + 2] += (Math.random() - 0.5) * 0.008;
-                }
-            }
-
-            heartPosAttr.needsUpdate = true;
-
-            // 爱心整体轻微变形（呼吸效果）
-            const breathe = 1 + Math.sin(time * 0.6) * 0.025;
-            heartParticles.scale.set(breathe, breathe, breathe);
-
-            // 更新飘落粒子
-            const fallingPosAttr = fallingGeometry.attributes.position;
-            const fallingPosArray = fallingPosAttr.array;
-
-            for (let i = 0; i < fallingParticleCount; i++) {
-                const idx = i * 3;
-
-                fallingPosArray[idx] += fallingVelocities[idx];
-                fallingPosArray[idx + 1] += fallingVelocities[idx + 1];
-                fallingPosArray[idx + 2] += fallingVelocities[idx + 2];
-
-                // 飘动效果
-                fallingPosArray[idx] += Math.sin(time * 1.5 + i * 0.1) * 0.006;
-                fallingPosArray[idx + 2] += Math.cos(time * 1.2 + i * 0.1) * 0.006;
-
-                // 重置到爱心底部
-                if (fallingPosArray[idx + 1] < -11) {
-                    const target = getSolidHeartTarget(0.8 + Math.random() * 0.3);
-                    
-                    fallingPosArray[idx] = target.x + (Math.random() - 0.5) * 0.5;
-                    fallingPosArray[idx + 1] = target.y;
-                    fallingPosArray[idx + 2] = target.z + (Math.random() - 0.5) * 0.5;
-                }
-            }
-
-            fallingPosAttr.needsUpdate = true;
-
-            // 更新文字粒子 - 慢慢形成"颜颜"
-            const textPosAttr = textGeometry.attributes.position;
-            const textPosArray = textPosAttr.array;
-
-            for (let i = 0; i < textParticleCount; i++) {
-                const idx = i * 3;
-                
-                // 更新进度
-                textProgress[i] += 0.004;
-                if (textProgress[i] > 1) textProgress[i] = 1;
-                
-                // 向目标位置移动
-                const dx = textTargetPositions[idx] - textPosArray[idx];
-                const dy = textTargetPositions[idx + 1] - textPosArray[idx + 1];
-                const dz = textTargetPositions[idx + 2] - textPosArray[idx + 2];
-                
-                textPosArray[idx] += dx * 0.015;
-                textPosArray[idx + 1] += dy * 0.015;
-                textPosArray[idx + 2] += dz * 0.015;
-                
-                // 添加微小扰动
-                textPosArray[idx] += Math.sin(time * 0.8 + i) * 0.004;
-                textPosArray[idx + 1] += Math.cos(time * 0.8 + i) * 0.004;
-            }
-
-            textPosAttr.needsUpdate = true;
-
-            // 更新控制器
-            controls.update();
-
-            // 渲染
-            renderer.render(scene, camera);
-        }
-
-        // 窗口大小调整
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        animate();
-    </script>
+// ===== Resize =====
+window.onresize = ()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  composer.setSize(innerWidth,innerHeight);
+};
+</script>
 </body>
 </html>
