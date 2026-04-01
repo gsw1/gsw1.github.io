@@ -6,8 +6,9 @@
 <style>
 body{margin:0;background:#000;overflow:hidden;}
 canvas{display:block;}
-.back-btn{position:fixed;top:15px;left:15px;z-index:100;padding:8px 16px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;text-decoration:none;font-size:14px;backdrop-filter:blur(5px);transition:all 0.3s;}
+.back-btn{position:fixed;top:15px;left:15px;z-index:1000;padding:8px 16px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;text-decoration:none;font-size:14px;backdrop-filter:blur(5px);transition:all 0.3s;pointer-events:auto;}
 .back-btn:hover{background:rgba(255,255,255,0.3);transform:scale(1.05);}
+canvas{pointer-events:none;}
 </style>
 </head>
 <body>
@@ -176,19 +177,9 @@ scene.add(particles);
 // ===== State Machine =====
 let state="gather"; 
 let progress=0;
+let textDisplayTimer = 0; // 文字显示计时器
 
-// ===== Click/Touch Handler =====
-function handleInteraction(e){
-  if(e.target.closest('.back-btn')) return; // 排除返回按钮
-  if(state==="heart" || state==="text") state="explode";
-}
-
-// 同时支持鼠标点击和触摸
-window.addEventListener('click', handleInteraction);
-window.addEventListener('touchstart', (e)=>{
-  e.preventDefault(); // 防止触摸延迟
-  handleInteraction(e);
-}, {passive: false});
+// 移除点击切换功能，改为自动循环
 
 // ===== Animate =====
 function animate(){
@@ -213,6 +204,13 @@ function animate(){
   else if(state==="heart" || state==="text"){
     const s = 1 + Math.sin(Date.now()*0.002)*0.03;
     particles.scale.set(s,s,s);
+    
+    // 显示1秒后自动进入爆炸状态
+    textDisplayTimer += 0.02;
+    if(textDisplayTimer > 1.0){
+      state = "explode";
+      textDisplayTimer = 0;
+    }
   }
   else if(state==="explode"){
     progress+=0.05;
@@ -225,6 +223,7 @@ function animate(){
       targetIndex=(targetIndex+1)%targets.length;
       state="gather";
       progress=0;
+      textDisplayTimer = 0;
     }
   }
 
