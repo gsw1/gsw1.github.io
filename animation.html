@@ -41,7 +41,7 @@ document.body.appendChild(renderer.domElement);
 // ===== Composer + Bloom =====
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.5, 0.4, 0.85));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 3.0, 0.4, 0.85));
 
 // ===== Particle Setup =====
 const particleCount = 15000; // 手机优化点数少一些
@@ -166,7 +166,7 @@ const material = new THREE.ShaderMaterial({
     void main(){
       float d = length(gl_PointCoord-vec2(0.5));
       float alpha = smoothstep(0.5,0.0,d);
-      gl_FragColor=vec4(1.0,0.3,0.6,alpha);
+      gl_FragColor=vec4(1.0,0.6,0.9,alpha);
     }
   `
 });
@@ -177,10 +177,18 @@ scene.add(particles);
 let state="gather"; 
 let progress=0;
 
-// ===== Click Handler =====
-window.onclick = ()=>{
+// ===== Click/Touch Handler =====
+function handleInteraction(e){
+  if(e.target.closest('.back-btn')) return; // 排除返回按钮
   if(state==="heart" || state==="text") state="explode";
-};
+}
+
+// 同时支持鼠标点击和触摸
+window.addEventListener('click', handleInteraction);
+window.addEventListener('touchstart', (e)=>{
+  e.preventDefault(); // 防止触摸延迟
+  handleInteraction(e);
+}, {passive: false});
 
 // ===== Animate =====
 function animate(){
